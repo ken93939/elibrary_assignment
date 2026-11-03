@@ -1,0 +1,791 @@
+openapi: 3.1.1
+info:
+  title: E-Library API
+  version: 1.0.0
+  summary: Browse and borrow digital content and access borrowed files.
+  description: API contract for e library
+servers:
+  - url: http://localhost:8080/api/v1
+tags:
+  - name: Books
+    description: Book related operation. Currently support retrieval
+  - name: Loans
+    description: Loan related operation. Currently support loan and return operations.
+  - name: Content access
+    description: Content management operation. Currently support returning access link.
+security:
+  - basicAuth: []
+paths:
+  /books:
+    get:
+      tags:
+        - Books
+      operationId: listBooks
+      summary: Browse books
+      description: Return a list of books.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: A page of books.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookPage'
+              examples:
+                books:
+                  value:
+                    items:
+                      - id: 10000000-0000-4000-8000-000000000001
+                        contentType: BOOK
+                        title: Book
+                        authors:
+                          - Author
+                    page: 0
+                    size: 20
+                    totalItems: 1
+                    totalPages: 1
+                empty:
+                  value:
+                    items: []
+                    page: 0
+                    size: 20
+                    totalItems: 0
+                    totalPages: 0
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /books/{bookId}:
+    parameters:
+      - $ref: '#/components/parameters/BookId'
+    get:
+      tags:
+        - Books
+      operationId: getBook
+      summary: Get book details
+      description: Returns a book's details.
+      security: []
+      responses:
+        '200':
+          description: Book details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookDetail'
+              examples:
+                book:
+                  value:
+                    id: 10000000-0000-4000-8000-000000000001
+                    contentType: BOOK
+                    title: Book
+                    authors:
+                      - The author
+                    description:
+                    languageTag: en
+                    isbn13: '9780134685991'
+                    publisher: Publisher
+                    publishedOn: '2020-01-01'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/BookNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /books/{bookId}/availability:
+    parameters:
+      - $ref: '#/components/parameters/BookId'
+    get:
+      tags:
+        - Books
+      operationId: getBookAvailability
+      summary: Get book availability
+      description: Returns lending licence counts. A book without inventory has zero licences.
+      security: []
+      responses:
+        '200':
+          description: Current availability.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Availability'
+              examples:
+                available:
+                  value:
+                    totalLicenses: 2
+                    availableLicenses: 1
+                noInventory:
+                  value:
+                    totalLicenses: 0
+                    availableLicenses: 0
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/BookNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /loans:
+    get:
+      tags:
+        - Loans
+      operationId: getLoans
+      summary: Get the loans
+      description: Get the existing digital content loans
+      parameters:
+        - name: status
+          in: query
+          description: Currently only active loans can be fetched.
+          schema:
+            type: string
+            enum:
+              - ACTIVE
+            default: ACTIVE
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: A page of your active loans.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanPage'
+              examples:
+                activeLoans:
+                  value:
+                    items:
+                      - id: 20000000-0000-4000-8000-000000000001
+                        contentId: 10000000-0000-4000-8000-000000000001
+                        borrowedAt: '2026-11-04T10:00:00Z'
+                        dueAt: '2026-11-18T10:00:00Z'
+                        returnedAt: null
+                        status: ACTIVE
+                        content:
+                          id: 10000000-0000-4000-8000-000000000001
+                          contentType: BOOK
+                          title: Example Book
+                    page: 0
+                    size: 20
+                    totalItems: 1
+                    totalPages: 1
+                empty:
+                  value:
+                    items: []
+                    page: 0
+                    size: 20
+                    totalItems: 0
+                    totalPages: 0
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    post:
+      tags:
+        - Loans
+      operationId: borrowContent
+      summary: Borrow content
+      description: Create a loan to borrow certain content.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BorrowContentRequest'
+            examples:
+              borrowBook:
+                value:
+                  contentId: 10000000-0000-4000-8000-000000000001
+      responses:
+        '201':
+          description: The loan information.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActiveLoan'
+              examples:
+                created:
+                  $ref: '#/components/examples/ActiveLoan'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidKey:
+                  value:
+                    message: Supply a nonblank Idempotency-Key of 1 to 128 visible ASCII characters.
+                    code: INVALID_IDEMPOTENCY_KEY
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/ContentNotFound'
+        '409':
+          description: The idempotency key was already used for a different request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                reusedKey:
+                  value:
+                    message: This key was already used successfully with different input.
+                    code: IDEMPOTENCY_KEY_REUSED
+        '422':
+          description: Unprocessable entity. May be related to business validation error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                unavailable:
+                  value:
+                    message: All lending licences for this content are in use.
+                    code: CONTENT_UNAVAILABLE
+                alreadyBorrowed:
+                  value:
+                    message: You already have an active loan for this content.
+                    code: CONTENT_ALREADY_BORROWED
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /loans/{loanId}:
+    parameters:
+      - $ref: '#/components/parameters/LoanId'
+    get:
+      tags:
+        - Loans
+      operationId: getLoan
+      summary: Get loan details
+      description: Return the current loans
+      responses:
+        '200':
+          description: Loan details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Loan'
+              examples:
+                active:
+                  $ref: '#/components/examples/ActiveLoan'
+                returned:
+                  $ref: '#/components/examples/ReturnedLoan'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/LoanNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /loans/{loanId}/return:
+    parameters:
+      - $ref: '#/components/parameters/LoanId'
+    post:
+      tags:
+        - Loans
+      operationId: returnLoan
+      summary: Return borrowed content
+      description: Return loan based on id.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReturnedLoan'
+              examples:
+                returned:
+                  $ref: '#/components/examples/ReturnedLoan'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/LoanNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /loans/{loanId}/access-links:
+    parameters:
+      - $ref: '#/components/parameters/LoanId'
+    post:
+      tags:
+        - Content access
+      operationId: getContentAccessLink
+      summary: Get a temporary download link
+      description: Get a temporary download link of the digital content loan.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentAccessLink'
+              examples:
+                accessLink:
+                  value:
+                    method: GET
+                    url: https://objects.example.test/sample.epub?example-signature=placeholder
+                    expiresAt: '2026-11-04T10:01:00Z'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/LoanNotFound'
+        '422':
+          description: Unprocessable enitty. It indicates the loan is returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                returnedLoan:
+                  value:
+                    message: This loan has been returned and cannot grant new access links.
+                    code: LOAN_NOT_ACTIVE
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+  parameters:
+    Page:
+      name: page
+      in: query
+      description: Zero-based page index; pages beyond the result set are empty.
+      schema:
+        type: integer
+        format: int
+        minimum: 0
+        default: 0
+      example: 0
+    Size:
+      name: size
+      in: query
+      description: Number of items per page; invalid values are rejected, not clamped.
+      schema:
+        type: integer
+        format: int
+        minimum: 1
+        maximum: 100
+        default: 20
+      example: 20
+    BookId:
+      name: bookId
+      in: path
+      required: true
+      description: Book id
+      schema:
+        type: string
+        format: uuid
+      example: 10000000-0000-4000-8000-000000000001
+    LoanId:
+      name: loanId
+      in: path
+      required: true
+      description: Loan ID
+      schema:
+        type: string
+        format: uuid
+      example: 20000000-0000-4000-8000-000000000001
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Idempotency key to ensure the idempotency
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+      example: 4dc4ac98-97b5-4bd9-a17a-c797147f0a98
+  schemas:
+    Availability:
+      type: object
+      description: Available licences equal capacity minus active loans; values are advisory.
+      required:
+        - totalLicenses
+        - availableLicenses
+      properties:
+        totalLicenses:
+          type: integer
+          format: int
+          minimum: 0
+        availableLicenses:
+          type: integer
+          format: int
+          minimum: 0
+    ContentSummary:
+      type: object
+      required:
+        - id
+        - contentType
+        - title
+      properties:
+        id:
+          type: string
+          format: uuid
+        contentType:
+          type: string
+          enum:
+            - BOOK
+          description: BOOK is the only supported type in this version.
+        title:
+          type: string
+          minLength: 1
+          maxLength: 300
+    BookSummary:
+      allOf:
+        - $ref: '#/components/schemas/ContentSummary'
+        - type: object
+          required:
+            - authors
+          properties:
+            authors:
+              type: array
+              description: Author display names in publication order; may be empty if unknown.
+              items:
+                type: string
+                minLength: 1
+                maxLength: 200
+    BookDetail:
+      allOf:
+        - $ref: '#/components/schemas/BookSummary'
+        - type: object
+          required:
+            - description
+            - languageTag
+            - isbn13
+            - publisher
+            - publishedOn
+          properties:
+            description:
+              type:
+                - string
+                - 'null'
+            languageTag:
+              type:
+                - string
+                - 'null'
+              maxLength: 35
+            isbn13:
+              type:
+                - string
+                - 'null'
+              pattern: '^[0-9]{13}$'
+              description: Normalized ISBN-13, if assigned.
+            publisher:
+              type:
+                - string
+                - 'null'
+              maxLength: 200
+            publishedOn:
+              type:
+                - string
+                - 'null'
+              format: date
+    BookPage:
+      type: object
+      required:
+        - items
+        - page
+        - size
+        - totalItems
+        - totalPages
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/BookSummary'
+        page:
+          type: integer
+          format: int
+          minimum: 0
+        size:
+          type: integer
+          format: int
+          minimum: 1
+          maximum: 100
+        totalItems:
+          type: integer
+          format: int
+          minimum: 0
+        totalPages:
+          type: integer
+          format: int
+          minimum: 0
+    BorrowContentRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - contentId
+      properties:
+        contentId:
+          type: string
+          format: uuid
+    Loan:
+      type: object
+      required:
+        - id
+        - contentId
+        - borrowedAt
+        - dueAt
+        - returnedAt
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        contentId:
+          type: string
+          format: uuid
+        borrowedAt:
+          type: string
+          format: date-time
+        dueAt:
+          type: string
+          format: date-time
+        returnedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - RETURNED
+      oneOf:
+        - properties:
+            status:
+              const: ACTIVE
+            returnedAt:
+              type: 'null'
+        - properties:
+            status:
+              const: RETURNED
+            returnedAt:
+              type: string
+              format: date-time
+    LoanWithContent:
+      allOf:
+        - $ref: '#/components/schemas/Loan'
+        - type: object
+          required:
+            - content
+          properties:
+            content:
+              $ref: '#/components/schemas/ContentSummary'
+    ActiveLoan:
+      allOf:
+        - $ref: '#/components/schemas/Loan'
+        - type: object
+          properties:
+            status:
+              const: ACTIVE
+    ReturnedLoan:
+      allOf:
+        - $ref: '#/components/schemas/Loan'
+        - type: object
+          properties:
+            status:
+              const: RETURNED
+    LoanPage:
+      type: object
+      required:
+        - items
+        - page
+        - size
+        - totalItems
+        - totalPages
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            allOf:
+              - $ref: '#/components/schemas/LoanWithContent'
+              - properties:
+                  status:
+                    const: ACTIVE
+        page:
+          type: integer
+          format: int32
+          minimum: 0
+        size:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+        totalItems:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          format: int64
+          minimum: 0
+    ContentAccessLink:
+      type: object
+      required:
+        - method
+        - url
+        - expiresAt
+      properties:
+        method:
+          type: string
+          const: GET
+        url:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+          description: End of the requested 60-second URL validity window.
+    ErrorResponse:
+      type: object
+      required:
+        - message
+        - code
+      properties:
+        message:
+          type: string
+        code:
+          type: string
+  examples:
+    ActiveLoan:
+      value:
+        id: 20000000-0000-4000-8000-000000000001
+        contentId: 10000000-0000-4000-8000-000000000001
+        borrowedAt: '2026-11-04T10:00:00Z'
+        dueAt: '2026-11-18T10:00:00Z'
+        returnedAt: null
+        status: ACTIVE
+    ReturnedLoan:
+      value:
+        id: 20000000-0000-4000-8000-000000000001
+        contentId: 10000000-0000-4000-8000-000000000001
+        borrowedAt: '2026-11-04T10:00:00Z'
+        dueAt: '2026-11-18T10:00:00Z'
+        returnedAt: '2026-11-05T09:00:00Z'
+        status: RETURNED
+    LoanNotFound:
+      value:
+        message: The requested loan was not found.
+        code: LOAN_NOT_FOUND
+  responses:
+    InvalidRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            validationFailure:
+              value:
+                message: One or more request fields are invalid.
+                code: INVALID_REQUEST
+    Unauthenticated:
+      description: Authentication credentials are absent or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            unauthenticated:
+              value:
+                message: Supply valid HTTP Basic credentials.
+                code: UNAUTHENTICATED
+    BookNotFound:
+      description: No book edition exists with the requested ID.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            notFound:
+              value:
+                message: The requested book was not found.
+                code: BOOK_NOT_FOUND
+    ContentNotFound:
+      description: No supported lendable digital content exists with the requested ID.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            notFound:
+              value:
+                message: The requested digital content was not found.
+                code: CONTENT_NOT_FOUND
+    LoanNotFound:
+      description: Loan is missing or belongs to another user; the response does not distinguish them.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            notFound:
+              $ref: '#/components/examples/LoanNotFound'
+    UnsupportedMediaType:
+      description: Unsupported type
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            unsupportedMediaType:
+              value:
+                message: Use Content-Type application/json for this request body.
+                code: UNSUPPORTED_MEDIA_TYPE
+    InternalError:
+      description: Internal error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            internalError:
+              value:
+                message: The request could not be completed.
+                code: INTERNAL_ERROR
+    ServiceUnavailable:
+      description: Service unavilable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            busy:
+              value:
+                message: The operation is busy; retry shortly.
+                code: SERVICE_BUSY
+            unavailable:
+              value:
+                message: A required dependency is temporarily unavailable.
+                code: SERVICE_UNAVAILABLE

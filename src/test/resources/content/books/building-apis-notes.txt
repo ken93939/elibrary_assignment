@@ -1,0 +1,4 @@
+Building APIs: Notes
+
+This sample edition accompanies the e-library assignment.
+Keep API contracts explicit and retries safe.

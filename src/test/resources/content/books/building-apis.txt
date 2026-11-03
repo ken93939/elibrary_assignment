@@ -1,0 +1,4 @@
+Building APIs
+
+This sample book demonstrates the e-library download flow.
+Use clear resource names, validate requests, and return predictable errors.

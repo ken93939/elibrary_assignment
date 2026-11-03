@@ -1,0 +1,4 @@
+Designing Systems
+
+This sample book accompanies the e-library assignment.
+Group behavior by responsibility and keep external integrations behind ports.

@@ -2,12 +2,13 @@ package com.kenkwok.mirae.elibrary;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 @SpringBootApplication
+@ConfigurationPropertiesScan
 public class ElibraryApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(ElibraryApplication.class, args);
-	}
-
+  public static void main(String[] args) {
+    SpringApplication.run(ElibraryApplication.class, args);
+  }
 }
